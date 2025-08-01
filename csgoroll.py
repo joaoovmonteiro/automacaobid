@@ -46,12 +46,43 @@ def limpar_nome_arquivo(nome):
     nome_limpo = nome_limpo.replace(' ', '_')
     return nome_limpo
 
-# Criar pastas necessárias
 def criar_pastas():
-    if not os.path.exists("fotos_atletas"):
-        os.makedirs("fotos_atletas")
-    if not os.path.exists("cards_atletas"):
-        os.makedirs("cards_atletas")
+    """Cria as pastas necessárias se não existirem"""
+    pastas = ["fotos_atletas", "cards_atletas"]
+    
+    for pasta in pastas:
+        if not os.path.exists(pasta):
+            os.makedirs(pasta)
+            logger.info(f"Pasta criada: {pasta}")
+        else:
+            logger.info(f"Pasta já existe: {pasta}")
+
+def limpar_arquivo(caminho_arquivo):
+    """Remove um arquivo específico se ele existir"""
+    try:
+        if caminho_arquivo and os.path.exists(caminho_arquivo):
+            os.remove(caminho_arquivo)
+            logger.info(f"Arquivo removido: {caminho_arquivo}")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao remover arquivo {caminho_arquivo}: {e}")
+        return False
+
+def limpar_arquivos_atleta(foto_path, card_path):
+    """Remove os arquivos temporários de foto e card do atleta"""
+    arquivos_removidos = 0
+    
+    if limpar_arquivo(foto_path):
+        arquivos_removidos += 1
+    
+    if limpar_arquivo(card_path):
+        arquivos_removidos += 1
+    
+    if arquivos_removidos > 0:
+        logger.info(f"Limpeza concluída: {arquivos_removidos} arquivo(s) removido(s)")
+    
+    return arquivos_removidos
 
 # Sessão HTTP
 session = requests.Session()
@@ -488,26 +519,42 @@ def exibir_resultados(resp, data_busca):
             logger.info(f"\n{len(dados)} registro(s) encontrado(s) para {data_busca}:\n")
             
             for atleta in dados:
-                logger.info(f" {atleta['nome']} (Apelido: {atleta.get('apelido', '-')})")
-                logger.info(f" Código do Atleta: {atleta['codigo_atleta']}")
-                logger.info(f" Contrato: {atleta['contrato_numero']}")
+                foto_path = None
+                card_path = None
                 
-                # Baixar foto e criar card
-                foto_path = baixar_foto_atleta(atleta['codigo_atleta'], atleta['nome'])
-                card_path = criar_card_atleta(atleta, foto_path)
-                
-                if card_path:
-                    logger.info("Postando no X...")
-                    sucesso = postar_no_x(atleta, card_path)
-                    if sucesso:
-                        logger.info(f"Post criado para {atleta['nome']}")
+                try:
+                    logger.info(f" {atleta['nome']} (Apelido: {atleta.get('apelido', '-')})")
+                    logger.info(f" Código do Atleta: {atleta['codigo_atleta']}")
+                    logger.info(f" Contrato: {atleta['contrato_numero']}")
+                    
+                    # Baixar foto e criar card
+                    foto_path = baixar_foto_atleta(atleta['codigo_atleta'], atleta['nome'])
+                    card_path = criar_card_atleta(atleta, foto_path)
+                    
+                    if card_path:
+                        logger.info("Postando no X...")
+                        sucesso = postar_no_x(atleta, card_path)
+                        if sucesso:
+                            logger.info(f"Post criado para {atleta['nome']}")
+                        else:
+                            logger.error(f"Falha ao postar {atleta['nome']}")
                     else:
-                        logger.error(f"Falha ao postar {atleta['nome']}")
-                else:
-                    logger.error(f"Falha ao criar card para {atleta['nome']}")
+                        logger.error(f"Falha ao criar card para {atleta['nome']}")
+                    
+                    logger.info("\n" + "-"*50 + "\n")
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao processar atleta {atleta.get('nome', 'desconhecido')}: {e}")
                 
-                logger.info("\n" + "-"*50 + "\n")
-                time.sleep(3)  # Pausa entre posts
+                finally:
+                    # LIMPEZA: Remove os arquivos temporários após o processamento
+                    if foto_path or card_path:
+                        logger.info("Iniciando limpeza de arquivos temporários...")
+                        arquivos_removidos = limpar_arquivos_atleta(foto_path, card_path)
+                        logger.info(f"Limpeza concluída para {atleta.get('nome', 'atleta')}")
+                    
+                    # Pausa entre processamentos
+                    time.sleep(3)
                 
             return True
         else:
@@ -520,6 +567,8 @@ def exibir_resultados(resp, data_busca):
 def executar_busca():
     """Função principal que executa uma busca completa"""
     logger.info("Iniciando execução do monitor BID...")
+    
+    # IMPORTANTE: Criar pastas na inicialização
     criar_pastas()
     
     data_busca = obter_data_hoje()
