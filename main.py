@@ -18,7 +18,7 @@ import hashlib
 
 # Importar o módulo principal
 try:
-    from csgoroll import executar_busca, criar_card_atleta, baixar_foto_atleta, postar_no_x, criar_pastas
+    from csgoroll import executar_busca, criar_card_atleta, baixar_foto_atleta, postar_no_x, criar_pastas, limpar_arquivos_atleta
 except ImportError:
     print("Erro: Não foi possível importar o módulo csgoroll.py")
     print("   Certifique-se de que o arquivo csgoroll.py está no mesmo diretório")
@@ -43,6 +43,37 @@ class BIDMonitor:
         self.proxima_execucao = None
         self.arquivo_historico = "atletas_postados.json"
         self.thread_monitor = None
+        self.ultimo_dia_verificado = None  # Para controlar limpeza diária
+        
+    def limpar_historico_se_novo_dia(self):
+        """Limpa o histórico se mudou o dia"""
+        dia_atual = datetime.now().strftime('%Y-%m-%d')
+        
+        if self.ultimo_dia_verificado is None:
+            # Primeira execução, definir o dia atual
+            self.ultimo_dia_verificado = dia_atual
+            logger.info(f"Dia inicial definido: {dia_atual}")
+            return False
+        
+        if dia_atual != self.ultimo_dia_verificado:
+            logger.info(f"Mudança de dia detectada: {self.ultimo_dia_verificado} → {dia_atual}")
+            logger.info("Limpando histórico de atletas postados (novo dia)")
+            
+            try:
+                if Path(self.arquivo_historico).exists():
+                    os.remove(self.arquivo_historico)
+                    logger.info("Histórico limpo com sucesso!")
+                else:
+                    logger.info("Nenhum histórico para limpar")
+                
+                self.ultimo_dia_verificado = dia_atual
+                return True
+                
+            except Exception as e:
+                logger.error(f"Erro ao limpar histórico: {e}")
+                return False
+        
+        return False
         
     def carregar_historico(self):
         """Carrega o histórico de atletas já postados"""
@@ -82,6 +113,11 @@ class BIDMonitor:
         )
         
         logger.info("Iniciando busca por novos contratos...")
+        
+        # IMPORTANTE: Verificar se precisa limpar histórico (novo dia)
+        self.limpar_historico_se_novo_dia()
+        
+        # IMPORTANTE: Criar pastas na inicialização
         criar_pastas()
         
         # Carregar histórico
@@ -158,6 +194,9 @@ class BIDMonitor:
             # Processar apenas os novos
             postados_com_sucesso = 0
             for atleta in novos_atletas:
+                foto_path = None
+                card_path = None
+                
                 try:
                     logger.info(f"\nProcessando: {atleta['nome']}")
                     logger.info(f"Código: {atleta['codigo_atleta']}")
@@ -193,11 +232,19 @@ class BIDMonitor:
                     if postados_com_sucesso > 0:
                         self.salvar_historico(historico)
                     
-                    time.sleep(2)  # Pausa entre processamentos
-                    
                 except Exception as e:
                     logger.error(f"Erro ao processar {atleta.get('nome', 'atleta desconhecido')}: {e}")
                     continue
+                
+                finally:
+                    # LIMPEZA: Remove os arquivos temporários após o processamento
+                    if foto_path or card_path:
+                        logger.info("Iniciando limpeza de arquivos temporários...")
+                        arquivos_removidos = limpar_arquivos_atleta(foto_path, card_path)
+                        logger.info(f"Limpeza concluída para {atleta.get('nome', 'atleta')}")
+                    
+                    # Pausa entre processamentos
+                    time.sleep(2)
             
             # Salvar histórico final
             self.salvar_historico(historico)
@@ -232,20 +279,27 @@ class BIDMonitor:
             import traceback
             logger.error(traceback.format_exc())
         
-        # Calcular próxima execução
-        self.atualizar_proxima_execucao()
+        # Calcular próxima execução CORRETAMENTE
+        self.calcular_proxima_execucao()
         
         logger.info(f"Próxima execução em: {self.proxima_execucao.strftime('%d/%m/%Y %H:%M:%S')}")
         logger.info(f"{'='*60}\n")
     
-    def atualizar_proxima_execucao(self):
-        """Atualiza o horário da próxima execução"""
-        jobs = schedule.get_jobs()
-        if jobs:
-            self.proxima_execucao = jobs[0].next_run
-        else:
-            # Fallback: calcular manualmente
-            self.proxima_execucao = datetime.now() + timedelta(minutes=30)
+    def calcular_proxima_execucao(self):
+        """Calcula corretamente o horário da próxima execução"""
+        try:
+            # Pegar o próximo job agendado
+            jobs = schedule.get_jobs()
+            if jobs:
+                # Usar o next_run do primeiro job
+                self.proxima_execucao = jobs[0].next_run
+            else:
+                # Fallback: calcular manualmente (10 minutos a partir de agora)
+                self.proxima_execucao = datetime.now() + timedelta(minutes=10)
+        except Exception as e:
+            logger.error(f"Erro ao calcular próxima execução: {e}")
+            # Fallback em caso de erro
+            self.proxima_execucao = datetime.now() + timedelta(minutes=10)
     
     def monitor_loop(self):
         """Loop principal do monitor em thread separada"""
@@ -267,14 +321,15 @@ class BIDMonitor:
             return
         
         logger.info("\nINICIANDO MONITORAMENTO AUTOMÁTICO DO BID CBF")
-        logger.info("Execução programada a cada 30 minutos")
+        logger.info("Execução programada a cada 10 minutos")
+        logger.info("Limpeza automática do histórico todo dia às 00:00")
         logger.info("Para parar, pressione Ctrl+C\n")
         
         # Limpar agendamentos anteriores
         schedule.clear()
         
-        # Agendar execução a cada 30 minutos
-        schedule.every(30).minutes.do(self.job_wrapper)
+        # Agendar execução a cada 10 minutos
+        schedule.every(10).minutes.do(self.job_wrapper)
         
         # Executar imediatamente na primeira vez
         logger.info("Executando verificação inicial...")
@@ -319,7 +374,8 @@ class BIDMonitor:
             'running': self.running,
             'execucoes': self.execucoes,
             'ultima_execucao': self.ultima_execucao,
-            'proxima_execucao': self.proxima_execucao
+            'proxima_execucao': self.proxima_execucao,
+            'ultimo_dia_verificado': self.ultimo_dia_verificado
         }
     
     def exibir_status(self):
@@ -340,12 +396,15 @@ class BIDMonitor:
         else:
             print("Próxima execução: Não agendada")
         
+        if self.ultimo_dia_verificado:
+            print(f"Último dia verificado: {self.ultimo_dia_verificado}")
+        
         # Mostrar estatísticas do histórico
         try:
             historico = self.carregar_historico()
-            print(f"Total de atletas postados: {len(historico)}")
+            print(f"Total de atletas postados hoje: {len(historico)}")
         except:
-            print("Total de atletas postados: Erro ao carregar")
+            print("Total de atletas postados hoje: Erro ao carregar")
             
         print("="*50)
     
@@ -388,10 +447,10 @@ def verificar_dependencias():
     for nome_pip, nome_import in dependencias.items():
         try:
             __import__(nome_import)
-            logger.info(f"   {nome_pip}")
+            logger.info(f"   ✓ {nome_pip}")
         except ImportError:
             faltando.append(nome_pip)
-            logger.error(f"   {nome_pip}")
+            logger.error(f"   ✗ {nome_pip}")
     
     if faltando:
         logger.error("Dependências faltando:")
@@ -400,7 +459,7 @@ def verificar_dependencias():
         logger.error("   Execute: pip install " + " ".join(faltando))
         return False
     
-    logger.info("Todas as dependências estão instaladas")
+    logger.info("Todas as dependências estão instaladas ✓")
     return True
 
 def verificar_arquivos():
@@ -412,9 +471,9 @@ def verificar_arquivos():
         if not Path(arquivo).exists():
             logger.error(f"Arquivo não encontrado: {arquivo}")
             return False
-        logger.info(f"   {arquivo}")
+        logger.info(f"   ✓ {arquivo}")
     
-    logger.info("Todos os arquivos necessários estão presentes")
+    logger.info("Todos os arquivos necessários estão presentes ✓")
     return True
 
 def menu_interativo():
@@ -425,7 +484,7 @@ def menu_interativo():
         print("\n" + "="*60)
         print("MONITOR BID CBF - MENU PRINCIPAL")
         print("="*60)
-        print("1. Iniciar monitoramento automático (30min)")
+        print("1. Iniciar monitoramento automático (10min)")
         print("2. Executar uma verificação única")
         print("3. Exibir status e estatísticas")
         print("4. Ver histórico de atletas postados")
@@ -464,16 +523,16 @@ def menu_interativo():
                 input("\nPressione Enter para continuar...")
                 
             elif opcao == '4':
-                print("\nHISTÓRICO DE ATLETAS POSTADOS")
+                print("\nHISTÓRICO DE ATLETAS POSTADOS HOJE")
                 print("="*50)
                 try:
                     historico = monitor.carregar_historico()
                     if historico:
                         for i, (hash_id, dados) in enumerate(historico.items(), 1):
                             print(f"{i}. {dados['nome']} - {dados['data_postagem'][:19]}")
-                        print(f"\nTotal: {len(historico)} atletas postados")
+                        print(f"\nTotal: {len(historico)} atletas postados hoje")
                     else:
-                        print("Nenhum atleta no histórico")
+                        print("Nenhum atleta no histórico hoje")
                 except Exception as e:
                     print(f"Erro ao carregar histórico: {e}")
                 print("="*50)
@@ -512,9 +571,9 @@ def menu_interativo():
 def main():
     """Função principal"""
     print("="*60)
-    print("MONITOR AUTOMÁTICO BID CBF v2.0")
+    print("MONITOR AUTOMÁTICO BID CBF v2.2")
     print("   Desenvolvido para monitoramento de contratos")
-    print("   Com controle de duplicatas e execução contínua")
+    print("   Com controle de duplicatas e limpeza automática diária")
     print("="*60)
     
     # Configurar handler para sinais
