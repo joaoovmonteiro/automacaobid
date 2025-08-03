@@ -37,7 +37,7 @@ MAX_TENTATIVAS = 5000000000  # Reduzido para evitar loops infinitos
 
 # Credenciais do X (Twitter)
 TWITTER_USERNAME = "biddocriciuma"
-TWITTER_PASSWORD = "C@mpinh02134"
+TWITTER_PASSWORD = ""
 
 def limpar_nome_arquivo(nome):
     """Remove caracteres inválidos para nomes de arquivo"""
@@ -615,3 +615,4 @@ def executar_busca():
 
 if __name__ == "__main__":
     executar_busca()
+
