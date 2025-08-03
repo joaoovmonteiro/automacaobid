@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+pillow
+pytesseract
+opencv-python
+numpy
+selenium
+schedule
+python-dotenv
