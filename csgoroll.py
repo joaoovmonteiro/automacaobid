@@ -13,8 +13,10 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from datetime import datetime
 import logging
+import os
 
 # Configuração do logging
 logging.basicConfig(
@@ -27,17 +29,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuração do caminho do Tesseract OCR
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-
 # Parâmetros da consulta BID
 UF = "SC"
 CODIGO_CLUBE = "20019"
 MAX_TENTATIVAS = 5000000000  # Reduzido para evitar loops infinitos
 
 # Credenciais do X (Twitter)
-TWITTER_USERNAME = "biddocriciuma"
-TWITTER_PASSWORD = "C@mpinh02134"
+TWITTER_USERNAME = os.getenv("TWITTER_USERNAME")
+TWITTER_PASSWORD = os.getenv("TWITTER_PASSWORD")
 
 def limpar_nome_arquivo(nome):
     """Remove caracteres inválidos para nomes de arquivo"""
@@ -89,6 +88,7 @@ session = requests.Session()
 
 def obter_data_hoje():
     """Retorna a data atual no formato DD/MM/YYYY"""
+    return "10/06/2025"
     return datetime.now().strftime("%d/%m/%Y")
 
 def pegar_csrf_token():
@@ -257,7 +257,7 @@ def criar_card_atleta(atleta_data, foto_path):
         chrome_options.add_argument("--disable-logging")
         chrome_options.add_argument("--log-level=3")
         
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Remote(os.getenv("CHROME_REMOTE_URL"), DesiredCapabilities.CHROME, options=chrome_options)
         try:
             driver.set_window_size(900, 700)
             driver.execute_script("document.open(); document.write(arguments[0]); document.close();", html_content)
@@ -294,7 +294,7 @@ def postar_no_x(atleta_data, card_path):
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
 
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Remote(os.getenv("CHROME_REMOTE_URL"), DesiredCapabilities.CHROME, options=chrome_options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # Formatação da data de publicação

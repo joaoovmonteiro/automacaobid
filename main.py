@@ -15,14 +15,16 @@ import threading
 import json
 from pathlib import Path
 import hashlib
+from csgoroll import executar_busca, criar_card_atleta, baixar_foto_atleta, postar_no_x, criar_pastas, limpar_arquivos_atleta
+from dotenv import load_dotenv
 
+load_dotenv()  # Loads variables from .env
 # Importar o módulo principal
-try:
-    from csgoroll import executar_busca, criar_card_atleta, baixar_foto_atleta, postar_no_x, criar_pastas, limpar_arquivos_atleta
-except ImportError:
-    print("Erro: Não foi possível importar o módulo csgoroll.py")
-    print("   Certifique-se de que o arquivo csgoroll.py está no mesmo diretório")
-    sys.exit(1)
+# try:
+# except ImportError:
+#     print("Erro: Não foi possível importar o módulo csgoroll.py")
+#     print("   Certifique-se de que o arquivo csgoroll.py está no mesmo diretório")
+#     sys.exit(1)
 
 # Configuração do logging para o controlador
 logging.basicConfig(
