@@ -1,11 +1,16 @@
 FROM node:23.11.0
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends chromium && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+FROM node:23.11.0-bookworm-slim
 
-ENV PUPPETTEER_EXECUTABLE=/usr/bin/chromium
+# Instala Chromium compatível com ARM (funciona no Mac M1/M2 e ARM servers)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
+# Define caminho para o Chromium do sistema
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
