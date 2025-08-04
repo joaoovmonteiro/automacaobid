@@ -95,7 +95,7 @@ const createHtml = async (atleta: Atleta) => {
 };
 
 export async function criarCardAtleta(atleta: Atleta) {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
     const page = await browser.newPage();
 
     await page.setViewport({ width: 900, height: 700 });
