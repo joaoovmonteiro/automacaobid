@@ -1,5 +1,8 @@
 FROM node:23.11.0-alpine
 
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    chromium \\
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
