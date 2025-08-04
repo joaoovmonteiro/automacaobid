@@ -50,7 +50,6 @@ export default class Bid {
             regsense: 0,
             numeric: 2,
         });
-        fs.writeFileSync("captcha.png", response.data, "base64");
         this.captcha = answer.data;
         console.log("Captcha solved:", this.captcha);
         fs.writeFileSync(
@@ -65,7 +64,7 @@ export default class Bid {
         );
     }
 
-    async getBids(data: { data: string; uf: string; codigo_clube: string }) {
+    async getBids(data: { data: string; uf: string; codigo_clube: string }): Promise<Atleta[]> {
         if (!this.CRSF || !this.captcha) {
             await this.init();
         }
@@ -83,8 +82,12 @@ export default class Bid {
             return response.data;
         } catch (error) {
             if (axios.isAxiosError(error)) {
-                console.error("Error fetching bids:");
-                console.log(error?.response?.data);
+                console.error("Error fetching bids");
+                if (error?.response?.data.message == "CSRF token mismatch.") {
+                    console.error("CSRF token mismatch, reinitializing session...");
+                    await this.init();
+                    return this.getBids(data); // Retry after reinitializing session
+                }
             }
             throw error;
         }
@@ -92,7 +95,6 @@ export default class Bid {
 
     async buildCard(atleta: Atleta) {
         const buffer = await criarCardAtleta(atleta);
-        fs.writeFileSync("card.png", buffer);
         return buffer;
     }
 

@@ -35,33 +35,42 @@ const job = CronJob.from({
         bid.cleanCache();
         console.log("Running scheduled task...");
         for (const team of teams) {
-            console.log(`Fetching bids for team: ${team.code}`);
-            const bids = await bid.getBids({
-                data: new Date().toLocaleDateString("pt-BR"),
-                uf: team.uf,
-                codigo_clube: team.code,
-            });
-            console.log(`Found ${bids.length} bids for team: ${team.code} - ${team.uf}`);
-            for (const atleta of bids) {
-                const key = {
+            try {
+                console.log(`Fetching bids for team: ${team.code}`);
+
+                const bids = await bid.getBids({
                     data: new Date().toLocaleDateString("pt-BR"),
                     uf: team.uf,
                     codigo_clube: team.code,
-                    atleta_id: atleta.codigo_atleta,
-                };
+                });
+                console.log(`Found ${bids.length} bids for team: ${team.code} - ${team.uf}`);
+                for (const atleta of bids) {
+                    try {
+                        const key = {
+                            data: new Date().toLocaleDateString("pt-BR"),
+                            uf: team.uf,
+                            codigo_clube: team.code,
+                            atleta_id: atleta.codigo_atleta,
+                        };
 
-                if (await bid.checkKeyExists(key)) {
-                    console.log(`Tweet already posted for athlete: ${atleta.nome}`);
-                    continue;
+                        if (await bid.checkKeyExists(key)) {
+                            console.log(`Tweet already posted for athlete: ${atleta.nome}`);
+                            continue;
+                        }
+
+                        console.log(`Processing athlete: ${atleta.nome}`);
+                        const card = await bid.buildCard(atleta);
+                        console.log(`Posting tweet for athlete: ${atleta.nome}`);
+                        await postTweet(atleta, Buffer.from(card), team.client);
+
+                        //need to save that the tweet was posted today, so we don't post it again
+                        await bid.saveTweet(key);
+                    } catch (error) {
+                        console.error(`Error processing athlete ${atleta.nome}:`, error);
+                    }
                 }
-
-                console.log(`Processing athlete: ${atleta.nome}`);
-                const card = await bid.buildCard(atleta);
-                console.log(`Posting tweet for athlete: ${atleta.nome}`);
-                await postTweet(atleta, Buffer.from(card), team.client);
-
-                //need to save that the tweet was posted today, so we don't post it again
-                await bid.saveTweet(key);
+            } catch (error) {
+                console.error(`Error processing team ${team.code}:`, error);
             }
         }
     },
