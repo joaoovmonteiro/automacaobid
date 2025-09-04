@@ -1,0 +1,38 @@
+{
+    "name": "automacaobid",
+    "version": "1.0.0",
+    "description": "",
+    "homepage": "https://github.com/joaoovmonteiro/automacaobid#readme",
+    "bugs": {
+        "url": "https://github.com/joaoovmonteiro/automacaobid/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/joaoovmonteiro/automacaobid.git"
+    },
+    "license": "ISC",
+    "author": "",
+    "main": "index.js",
+    "scripts": {
+        "dev": "npx nodemon",
+        "build": "rm -rf ./build && tsc",
+        "start": "node build/main.js"
+    },
+    "devDependencies": {
+        "@types/node": "^24.1.0",
+        "@types/puppeteer": "^5.4.7",
+        "nodemon": "^3.1.10",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.2"
+    },
+    "dependencies": {
+        "@2captcha/captcha-solver": "^1.3.0",
+        "@resvg/resvg-js": "^2.6.2",
+        "axios": "^1.11.0",
+        "cron": "^4.3.3",
+        "dotenv": "^17.2.1",
+        "puppeteer": "^24.15.0",
+        "satori": "^0.16.2",
+        "twitter-api-v2": "^1.24.0"
+    }
+}
